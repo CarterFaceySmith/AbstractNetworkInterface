@@ -29,6 +29,7 @@ class NetworkImplementation : public AbstractNetworkInterface {
 public:
     NetworkImplementation();
     ~NetworkImplementation() override = default;
+    boost::asio::ip::tcp::socket* getSocket();
 
     void initialise(const std::string& address, unsigned short port) override;
     bool sendPE(const PE& pe) override;
