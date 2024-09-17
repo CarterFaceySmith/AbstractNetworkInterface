@@ -46,7 +46,7 @@ bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
 
 bool NetworkImplementation::sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) {
     std::string data = serializeComplexBlob(pe, emitter, doubleMap);
-    std::cout << "SENDING DATA:\n" << data << std::endl;
+    std::cout << "SENDING COMPLEX BLOB:\n" << data << std::endl;
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
