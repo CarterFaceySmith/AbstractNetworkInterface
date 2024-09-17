@@ -18,6 +18,7 @@ find_package(Boost REQUIRED COMPONENTS system)
 add_library(AbstractNetworkInterface STATIC
     AbstractNetworkInterface.cpp
     AbstractNetworkInterface.h
+    AbstractNetworkInterfaceTest.cpp
 )
 
 target_link_libraries(AbstractNetworkInterface

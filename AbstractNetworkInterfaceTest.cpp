@@ -3,27 +3,27 @@
 #include <thread>
 #include <chrono>
 
-class AbstractNetworkInterfaceTest : public ::testing::Test {
+class NetworkImplementationTest : public ::testing::Test {
 protected:
-    std::unique_ptr<TCPInterface> server;
-    std::unique_ptr<TCPInterface> client;
+    std::unique_ptr<NetworkImplementation> server;
+    std::unique_ptr<NetworkImplementation> client;
 
     void SetUp() override {
-        server = std::make_unique<TCPImplementation>();
-        client = std::make_unique<TCPImplementation>();
+        server = std::make_unique<NetworkImplementation>();
+        client = std::make_unique<NetworkImplementation>();
 
         // Start server in a separate thread
         std::thread serverThread([this]() {
             boost::asio::io_context io_context;
-            boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 12345));
-            acceptor.accept(*server->socket);
+            boost::asio::ip::tcp::acceptor acceptor(io_context, boost::asio::ip::tcp::endpoint(boost::asio::ip::tcp::v4(), 3525));
+            acceptor.accept(*(static_cast<boost::asio::ip::tcp::socket*>(server->getSocket())));
         });
 
         // Give the server a moment to start
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
         // Connect client
-        client->initialize("127.0.0.1", 12345);
+        client->initialise("127.0.0.1", 3525);
 
         serverThread.join();
     }
@@ -34,39 +34,26 @@ protected:
     }
 };
 
-TEST_F(AbstractNetworkInterfaceTest, SendReceiveAirEntity) {
-    AirEntity sentEntity{1, 10.0, 20.0, 30.0, 500.0, "fighter"};
-    
-    ASSERT_TRUE(client->sendAirEntity(sentEntity));
+TEST_F(NetworkImplementationTest, SendReceivePE) {
+    PE sentPE("TestID", "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
 
+    ASSERT_TRUE(client->sendPE(sentPE));
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
 
-    auto receivedEntities = server->receiveAirEntities();
-    ASSERT_EQ(receivedEntities.size(), 1);
+    auto receivedPEs = server->receivePEs();
+    ASSERT_EQ(receivedPEs.size(), 1);
 
-    AirEntity receivedEntity = receivedEntities[0];
-    EXPECT_EQ(receivedEntity.id, sentEntity.id);
-    EXPECT_DOUBLE_EQ(receivedEntity.x, sentEntity.x);
-    EXPECT_DOUBLE_EQ(receivedEntity.y, sentEntity.y);
-    EXPECT_DOUBLE_EQ(receivedEntity.z, sentEntity.z);
-    EXPECT_DOUBLE_EQ(receivedEntity.speed, sentEntity.speed);
-    EXPECT_EQ(receivedEntity.type, sentEntity.type);
-}
-
-TEST_F(AbstractNetworkInterfaceTest, SendReceiveDoubleMap) {
-    std::map<double, double> sentMap = {{1.0, 2.0}, {3.0, 4.0}, {5.0, 6.0}};
-    
-    ASSERT_TRUE(client->sendDoubleMap(sentMap));
-
-    std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
-
-    auto receivedMap = server->receiveDoubleMap();
-    EXPECT_EQ(receivedMap.size(), sentMap.size());
-
-    for (const auto& pair : sentMap) {
-        EXPECT_TRUE(receivedMap.find(pair.first) != receivedMap.end());
-        EXPECT_DOUBLE_EQ(receivedMap[pair.first], pair.second);
-    }
+    PE receivedPE = receivedPEs[0];
+    EXPECT_EQ(receivedPE.id, sentPE.id);
+    EXPECT_EQ(receivedPE.type, sentPE.type);
+    EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
+    EXPECT_DOUBLE_EQ(receivedPE.lon, sentPE.lon);
+    EXPECT_DOUBLE_EQ(receivedPE.altitude, sentPE.altitude);
+    EXPECT_DOUBLE_EQ(receivedPE.speed, sentPE.speed);
+    EXPECT_EQ(receivedPE.apd, sentPE.apd);
+    EXPECT_EQ(receivedPE.priority, sentPE.priority);
+    EXPECT_EQ(receivedPE.jam, sentPE.jam);
+    EXPECT_EQ(receivedPE.ghost, sentPE.ghost);
 }
 
 int main(int argc, char **argv) {
