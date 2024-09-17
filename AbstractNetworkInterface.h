@@ -50,6 +50,7 @@ public:
     std::vector<Emitter> receiveEmitters() override;
     std::vector<std::string> receiveBlob() override;
     std::tuple<PE, Emitter, std::map<std::string, double>> receiveComplexBlob() override;
+    void validateAndPrintDataBufferSize(std::string dataBuff, std::string funcName);
     void close() override;
 
 private:

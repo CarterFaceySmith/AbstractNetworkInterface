@@ -4,7 +4,9 @@
 #include <QJsonObject>
 #include <QJsonArray>
 #include <QJsonDocument>
+#include <iostream>
 #include <sstream>
+#include <stdexcept>
 
 NetworkImplementation::NetworkImplementation()
     : socket(std::make_unique<boost::asio::ip::tcp::socket>(io_context)) {}
@@ -16,6 +18,13 @@ void NetworkImplementation::initialise(const std::string& address, unsigned shor
 
 boost::asio::ip::tcp::socket* NetworkImplementation::getSocket() {
     return socket.get();
+}
+
+void NetworkImplementation::validateAndPrintDataBufferSize(std::string dataBuff, std::string funcName) {
+    dataBuff.data() ? std::cout << funcName << " - Received intact data buffer of length: "
+                                << dataBuff.length() << std::endl
+                    : std::cout << "Received invalid data buffer of length: "
+                                << dataBuff.length() << std::endl;
 }
 
 bool NetworkImplementation::sendBlob(const std::string& blobString) {
@@ -37,6 +46,7 @@ bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
 
 bool NetworkImplementation::sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) {
     std::string data = serializeComplexBlob(pe, emitter, doubleMap);
+    std::cout << "SENDING DATA:\n" << data << std::endl;
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
@@ -46,6 +56,8 @@ std::vector<PE> NetworkImplementation::receivePEs() {
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_end(buf.data())};
+    validateAndPrintDataBufferSize(data, "receivePEs");
+
     return deserializePEs(data);
 }
 
@@ -54,6 +66,8 @@ std::vector<Emitter> NetworkImplementation::receiveEmitters() {
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_end(buf.data())};
+    validateAndPrintDataBufferSize(data, "receiveEmitters");
+
     return deserializeEmitters(data);
 }
 
@@ -62,6 +76,7 @@ std::vector<std::string> NetworkImplementation::receiveBlob() {
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_end(buf.data())};
+    validateAndPrintDataBufferSize(data, "receiveBlob");
 
     std::vector<std::string> result;
     result.push_back(data);
@@ -73,6 +88,7 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_end(buf.data())};
+    validateAndPrintDataBufferSize(data, "receiveComplexBlob");
     return deserializeComplexBlob(data);
 }
 
@@ -206,13 +222,22 @@ std::vector<Emitter> NetworkImplementation::deserializeEmitters(const std::strin
     return emitters;
 }
 
-// FIXME: Likely causing segfault on test run
+// FIXME: Likely causing segfault on test run - deserialize pe not working when given as complex blob
 std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::deserializeComplexBlob(const std::string& data) {
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
     QJsonObject json = doc.object();
 
+    std::cout << data << std::endl;
+
     PE pe = deserializePEs(json["pe"].toObject().toVariantMap()["data"].toString().toStdString())[0];
+    if (pe.id.isNull()) {
+        throw std::runtime_error("Deserialization of 'pe' resulted in an empty object");
+    }
+
     Emitter emitter = deserializeEmitters(json["emitter"].toObject().toVariantMap()["data"].toString().toStdString())[0];
+    if (emitter.id.isNull()) {
+        throw std::runtime_error("Deserialization of 'emitter' resulted in an empty object");
+    }
 
     std::map<std::string, double> doubleMap;
     QJsonObject mapJson = json["doubleMap"].toObject();

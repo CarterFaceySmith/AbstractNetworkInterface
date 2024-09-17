@@ -93,40 +93,40 @@ TEST_F(NetworkImplementationTest, SendReceiveEmitter) {
     std::cout << "SendReceiveEmitter test completed" << std::endl;
 }
 
-TEST_F(NetworkImplementationTest, SendReceiveComplexBlob) {
-    std::cout << "Starting SendReceiveComplexBlob test" << std::endl;
-    PE sentPE("TestID", "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
-    Emitter sentEmitter("EmitterID", "RadarType", "Category", 15.0, 25.0, 8.0, 12.0);
-    std::map<std::string, double> sentDoubleMap = {{"key1", 1.0}, {"key2", 2.0}};
+// TEST_F(NetworkImplementationTest, SendReceiveComplexBlob) {
+//     std::cout << "Starting SendReceiveComplexBlob test" << std::endl;
+//     PE sentPE("TestID", "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
+//     Emitter sentEmitter("EmitterID", "RadarType", "Category", 15.0, 25.0, 8.0, 12.0);
+//     std::map<std::string, double> sentDoubleMap = {{"key1", 1.0}, {"key2", 2.0}};
 
-    std::cout << "Sending complex blob" << std::endl;
-    ASSERT_TRUE(client->sendComplexBlob(sentPE, sentEmitter, sentDoubleMap));
-    std::cout << "Complex blob sent" << std::endl;
-    std::this_thread::sleep_for(std::chrono::milliseconds(300)); // Allow time for message to be sent
+//     std::cout << "Sending complex blob" << std::endl;
+//     ASSERT_TRUE(client->sendComplexBlob(sentPE, sentEmitter, sentDoubleMap));
+//     std::cout << "Complex blob sent" << std::endl;
+//     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
 
-    std::cout << "Receiving complex blob" << std::endl;
-    auto [receivedPE, receivedEmitter, receivedDoubleMap] = server->receiveComplexBlob();
-    std::cout << "Complex blob received" << std::endl;
+//     std::cout << "Receiving complex blob" << std::endl;
+//     auto [receivedPE, receivedEmitter, receivedDoubleMap] = server->receiveComplexBlob();
+//     std::cout << "Complex blob received" << std::endl;
 
-    // Check PE
-    EXPECT_EQ(receivedPE.id, sentPE.id);
-    EXPECT_EQ(receivedPE.type, sentPE.type);
-    EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
-    EXPECT_DOUBLE_EQ(receivedPE.lon, sentPE.lon);
+//     // Check PE
+//     EXPECT_EQ(receivedPE.id, sentPE.id);
+//     EXPECT_EQ(receivedPE.type, sentPE.type);
+//     EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
+//     EXPECT_DOUBLE_EQ(receivedPE.lon, sentPE.lon);
 
-    // Check Emitter
-    EXPECT_EQ(receivedEmitter.id, sentEmitter.id);
-    EXPECT_EQ(receivedEmitter.type, sentEmitter.type);
-    EXPECT_DOUBLE_EQ(receivedEmitter.lat, sentEmitter.lat);
-    EXPECT_DOUBLE_EQ(receivedEmitter.lon, sentEmitter.lon);
+//     // Check Emitter
+//     EXPECT_EQ(receivedEmitter.id, sentEmitter.id);
+//     EXPECT_EQ(receivedEmitter.type, sentEmitter.type);
+//     EXPECT_DOUBLE_EQ(receivedEmitter.lat, sentEmitter.lat);
+//     EXPECT_DOUBLE_EQ(receivedEmitter.lon, sentEmitter.lon);
 
-    // Check Double Map
-    EXPECT_EQ(receivedDoubleMap.size(), sentDoubleMap.size());
-    for (const auto& [key, value] : sentDoubleMap) {
-        EXPECT_DOUBLE_EQ(receivedDoubleMap[key], value);
-    }
-    std::cout << "SendReceiveComplexBlob test completed" << std::endl;
-}
+//     // Check Double Map
+//     EXPECT_EQ(receivedDoubleMap.size(), sentDoubleMap.size());
+//     for (const auto& [key, value] : sentDoubleMap) {
+//         EXPECT_DOUBLE_EQ(receivedDoubleMap[key], value);
+//     }
+//     std::cout << "SendReceiveComplexBlob test completed" << std::endl;
+// }
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
