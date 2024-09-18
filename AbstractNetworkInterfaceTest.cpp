@@ -135,6 +135,56 @@ TEST_F(NetworkImplementationTest, SendReceiveComplexBlob) {
     std::cout << "SendReceiveComplexBlob test completed" << std::endl;
 }
 
+TEST_F(NetworkImplementationTest, SendInvalidPE) {
+    PE invalidPE("", "", -1.0, -1.0, -1.0, -1.0, "", "", false, false);
+    EXPECT_FALSE(client->sendPE(invalidPE));
+}
+
+TEST_F(NetworkImplementationTest, SendInvalidEmitter) {
+    Emitter invalidEmitter("", "", "", -1.0, -1.0, -1.0, -1.0);
+    EXPECT_FALSE(client->sendEmitter(invalidEmitter));
+}
+
+// TEST_F(NetworkImplementationTest, ConcurrentSendReceive) {
+//     const int numMessages = 100;
+//     std::vector<std::future<void>> futures;
+
+//     for (int i = 0; i < numMessages; ++i) {
+//         futures.push_back(std::async(std::launch::async, [this, i]() {
+//             PE pe(std::to_string(i).c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
+//             EXPECT_TRUE(client->sendPE(pe));
+//         }));
+//     }
+
+//     for (auto& f : futures) {
+//         f.wait();
+//     }
+
+//     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+//     auto receivedPEs = server->receivePEs();
+//     EXPECT_EQ(receivedPEs.size(), numMessages);
+// }
+
+// TEST_F(NetworkImplementationTest, PerformanceTest) {
+//     const int numMessages = 1000;
+//     auto start = std::chrono::high_resolution_clock::now();
+
+//     for (int i = 0; i < numMessages; ++i) {
+//         PE pe(std::to_string(i).c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
+//         ASSERT_TRUE(client->sendPE(pe));
+//     }
+
+//     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+//     auto receivedPEs = server->receivePEs();
+//     auto end = std::chrono::high_resolution_clock::now();
+//     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+//     EXPECT_EQ(receivedPEs.size(), numMessages);
+//     std::cout << "Time taken to send and receive " << numMessages << " PEs: " << duration.count() << "ms" << std::endl;
+// }
+
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

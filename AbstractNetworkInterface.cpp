@@ -33,12 +33,21 @@ bool NetworkImplementation::sendBlob(const std::string& blobString) {
 }
 
 bool NetworkImplementation::sendPE(const PE& pe) {
+    // Basic data validation
+    if (pe.id.length() < 3 || pe.altitude < 0) {
+        std::cout << "Invalid data field in pe object, aborting..." << std::endl;
+        return false;
+    }
     std::string data = serializePE(pe);
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
 
 bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
+    if (emitter.id.length() < 3 || emitter.altitude < 0) {
+        std::cout << "Invalid data field in emitter object, aborting..." << std::endl;
+        return false;
+    }
     std::string data = serializeEmitter(emitter);
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
@@ -96,6 +105,8 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
 void NetworkImplementation::close() {
     socket->close();
 }
+
+
 
 std::string NetworkImplementation::serializePE(const PE& pe) {
     QJsonObject json;
@@ -229,7 +240,6 @@ std::vector<Emitter> NetworkImplementation::deserializeEmitters(const std::strin
     return emitters;
 }
 
-// FIXME: Likely causing segfault on test run - deserialize pe not working when given as complex blob
 std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::deserializeComplexBlob(const std::string& data) {
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
     QJsonObject json = doc.object();
