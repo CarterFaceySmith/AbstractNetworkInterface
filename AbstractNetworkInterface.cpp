@@ -33,12 +33,21 @@ bool NetworkImplementation::sendBlob(const std::string& blobString) {
 }
 
 bool NetworkImplementation::sendPE(const PE& pe) {
+    // Basic data validation
+    if (pe.id.length() < 3 || pe.altitude < 0) {
+        std::cout << "Invalid data field in pe object, aborting..." << std::endl;
+        return false;
+    }
     std::string data = serializePE(pe);
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
 
 bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
+    if (emitter.id.length() < 3 || emitter.altitude < 0) {
+        std::cout << "Invalid data field in emitter object, aborting..." << std::endl;
+        return false;
+    }
     std::string data = serializeEmitter(emitter);
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
@@ -87,7 +96,8 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
     boost::asio::streambuf buf;
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
-                     boost::asio::buffers_end(buf.data())};
+                     boost::asio::buffers_begin(buf.data()) + buf.size() - 1}; // Remove the trailing newline
+    buf.consume(buf.size()); // Consume the read data
     validateAndPrintDataBufferSize(data, "receiveComplexBlob");
     return deserializeComplexBlob(data);
 }
@@ -95,6 +105,8 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
 void NetworkImplementation::close() {
     socket->close();
 }
+
+
 
 std::string NetworkImplementation::serializePE(const PE& pe) {
     QJsonObject json;
@@ -145,44 +157,50 @@ std::string NetworkImplementation::serializeEmitter(const Emitter& emitter) {
 // Note: Could update this to intake a vector of pes and emitters and serialize each into the blob before sending.
 std::string NetworkImplementation::serializeComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) {
     QJsonObject json;
-    json["pe"] = QJsonDocument::fromJson(serializePE(pe).c_str()).object();
-    json["emitter"] = QJsonDocument::fromJson(serializeEmitter(emitter).c_str()).object();
-
+    json["pe"] = QJsonObject{{"data", QString::fromStdString(serializePE(pe))}};
+    json["emitter"] = QJsonObject{{"data", QString::fromStdString(serializeEmitter(emitter))}};
     QJsonObject mapJson;
     for (const auto& pair : doubleMap) {
         mapJson[QString::fromStdString(pair.first)] = pair.second;
     }
     json["doubleMap"] = mapJson;
-
     QJsonDocument doc(json);
     return doc.toJson(QJsonDocument::Compact).toStdString() + "\n";
 }
 
 std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
     std::vector<PE> pes;
-    std::istringstream iss(data);
-    std::string line;
-    while (std::getline(iss, line)) {
-        QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(line).toUtf8());
-        if (doc.isNull()) continue;
-        QJsonObject json = doc.object();
-        PE pe(
-            json["id"].toString(),
-            json["type"].toString(),
-            json["lat"].toDouble(),
-            json["lon"].toDouble(),
-            json["altitude"].toDouble(),
-            json["speed"].toDouble(),
-            json["apd"].toString(),
-            json["priority"].toString(),
-            json["jam"].toBool(),
-            json["ghost"].toBool()
-        );
-        pe.heading = json["heading"].toDouble();
-        pe.category = static_cast<PE::PECategory>(json["category"].toInt());
-        pe.state = json["state"].toString();
-        pes.push_back(pe);
+    QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
+    if (doc.isNull()) {
+        throw std::runtime_error("Invalid JSON data for PE deserialization");
     }
+    QJsonObject json = doc.object();
+
+    // Check if all required fields are present
+    QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
+    for (const auto& field : requiredFields) {
+        if (!json.contains(field)) {
+            throw std::runtime_error("Missing required field: " + field.toStdString());
+        }
+    }
+
+    PE pe(
+        json["id"].toString(),
+        json["type"].toString(),
+        json["lat"].toDouble(),
+        json["lon"].toDouble(),
+        json["altitude"].toDouble(),
+        json["speed"].toDouble(),
+        json["apd"].toString(),
+        json["priority"].toString(),
+        json["jam"].toBool(),
+        json["ghost"].toBool()
+    );
+    pe.heading = json["heading"].toDouble();
+    pe.category = static_cast<PE::PECategory>(json["category"].toInt());
+    pe.state = json["state"].toString();
+    pes.push_back(pe);
+
     return pes;
 }
 
@@ -222,23 +240,27 @@ std::vector<Emitter> NetworkImplementation::deserializeEmitters(const std::strin
     return emitters;
 }
 
-// FIXME: Likely causing segfault on test run - deserialize pe not working when given as complex blob
 std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::deserializeComplexBlob(const std::string& data) {
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
     QJsonObject json = doc.object();
 
-    std::cout << data << std::endl;
-
-    PE pe = deserializePEs(json["pe"].toObject().toVariantMap()["data"].toString().toStdString())[0];
-    if (pe.id.isNull()) {
+    // Deserialize PE
+    std::string peData = json["pe"].toObject()["data"].toString().toStdString();
+    std::vector<PE> pes = deserializePEs(peData);
+    if (pes.empty()) {
         throw std::runtime_error("Deserialization of 'pe' resulted in an empty object");
     }
+    PE pe = pes[0];
 
-    Emitter emitter = deserializeEmitters(json["emitter"].toObject().toVariantMap()["data"].toString().toStdString())[0];
-    if (emitter.id.isNull()) {
+    // Deserialize Emitter
+    std::string emitterData = json["emitter"].toObject()["data"].toString().toStdString();
+    std::vector<Emitter> emitters = deserializeEmitters(emitterData);
+    if (emitters.empty()) {
         throw std::runtime_error("Deserialization of 'emitter' resulted in an empty object");
     }
+    Emitter emitter = emitters[0];
 
+    // Deserialize doubleMap
     std::map<std::string, double> doubleMap;
     QJsonObject mapJson = json["doubleMap"].toObject();
     for (auto it = mapJson.begin(); it != mapJson.end(); ++it) {
