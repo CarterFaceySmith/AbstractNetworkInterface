@@ -38,7 +38,7 @@ bool NetworkImplementation::sendPE(const PE& pe) {
         std::cout << "Invalid data field in pe object, aborting..." << std::endl;
         return false;
     }
-    std::string data = serializePE(pe);
+    std::string data = serializePE(pe) + "\n";  // Add newline to separate messages
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
@@ -65,9 +65,17 @@ std::vector<PE> NetworkImplementation::receivePEs() {
     boost::asio::read_until(*socket, buf, '\n');
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_end(buf.data())};
-    validateAndPrintDataBufferSize(data, "receivePEs");
+    buf.consume(buf.size());
 
-    return deserializePEs(data);
+    std::vector<PE> pes;
+    std::istringstream iss(data);
+    std::string line;
+    while (std::getline(iss, line)) {
+        if (!line.empty()) {
+            pes.push_back(deserializePE(line));
+        }
+    }
+    return pes;
 }
 
 std::vector<Emitter> NetworkImplementation::receiveEmitters() {
@@ -105,8 +113,6 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
 void NetworkImplementation::close() {
     socket->close();
 }
-
-
 
 std::string NetworkImplementation::serializePE(const PE& pe) {
     QJsonObject json;
@@ -166,6 +172,39 @@ std::string NetworkImplementation::serializeComplexBlob(const PE& pe, const Emit
     json["doubleMap"] = mapJson;
     QJsonDocument doc(json);
     return doc.toJson(QJsonDocument::Compact).toStdString() + "\n";
+}
+
+PE NetworkImplementation::deserializePE(const std::string& data) {
+    QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
+    if (doc.isNull()) {
+        throw std::runtime_error("Invalid JSON data for PE deserialization");
+    }
+    QJsonObject json = doc.object();
+
+    // Check if all required fields are present
+    QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
+    for (const auto& field : requiredFields) {
+        if (!json.contains(field)) {
+            throw std::runtime_error("Missing required field: " + field.toStdString());
+        }
+    }
+
+    PE pe(
+        json["id"].toString(),
+        json["type"].toString(),
+        json["lat"].toDouble(),
+        json["lon"].toDouble(),
+        json["altitude"].toDouble(),
+        json["speed"].toDouble(),
+        json["apd"].toString(),
+        json["priority"].toString(),
+        json["jam"].toBool(),
+        json["ghost"].toBool()
+    );
+    pe.heading = json["heading"].toDouble();
+    pe.category = static_cast<PE::PECategory>(json["category"].toInt());
+    pe.state = json["state"].toString();
+    return pe;
 }
 
 std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
