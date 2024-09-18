@@ -104,27 +104,35 @@ TEST_F(NetworkImplementationTest, SendReceiveComplexBlob) {
     std::cout << "Complex blob sent" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
 
-    // std::cout << "Receiving complex blob" << std::endl;
-    // auto [receivedPE, receivedEmitter, receivedDoubleMap] = server->receiveComplexBlob();
-    // std::cout << "Complex blob received" << std::endl;
+    // FIXME: Causes segmentation fault
+    std::cout << "Receiving complex blob" << std::endl;
 
-    // // Check PE
-    // EXPECT_EQ(receivedPE.id, sentPE.id);
-    // EXPECT_EQ(receivedPE.type, sentPE.type);
-    // EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
-    // EXPECT_DOUBLE_EQ(receivedPE.lon, sentPE.lon);
+    try {
+        auto [receivedPE, receivedEmitter, receivedDoubleMap] = server->receiveComplexBlob();
+        std::cout << "Complex blob received successfully" << std::endl;
 
-    // // Check Emitter
-    // EXPECT_EQ(receivedEmitter.id, sentEmitter.id);
-    // EXPECT_EQ(receivedEmitter.type, sentEmitter.type);
-    // EXPECT_DOUBLE_EQ(receivedEmitter.lat, sentEmitter.lat);
-    // EXPECT_DOUBLE_EQ(receivedEmitter.lon, sentEmitter.lon);
+        // Check PE
+        EXPECT_EQ(receivedPE.id, sentPE.id);
+        EXPECT_EQ(receivedPE.type, sentPE.type);
+        EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
+        EXPECT_DOUBLE_EQ(receivedPE.lon, sentPE.lon);
 
-    // // Check Double Map
-    // EXPECT_EQ(receivedDoubleMap.size(), sentDoubleMap.size());
-    // for (const auto& [key, value] : sentDoubleMap) {
-    //     EXPECT_DOUBLE_EQ(receivedDoubleMap[key], value);
-    // }
+        // Check Emitter
+        EXPECT_EQ(receivedEmitter.id, sentEmitter.id);
+        EXPECT_EQ(receivedEmitter.type, sentEmitter.type);
+        EXPECT_DOUBLE_EQ(receivedEmitter.lat, sentEmitter.lat);
+        EXPECT_DOUBLE_EQ(receivedEmitter.lon, sentEmitter.lon);
+
+        // Check Double Map
+        EXPECT_EQ(receivedDoubleMap.size(), sentDoubleMap.size());
+        for (const auto& [key, value] : sentDoubleMap) {
+            EXPECT_DOUBLE_EQ(receivedDoubleMap[key], value);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Exception caught: " << e.what() << std::endl;
+        FAIL() << "Exception thrown during complex blob reception";
+    }
+
     std::cout << "SendReceiveComplexBlob test completed" << std::endl;
 }
 
