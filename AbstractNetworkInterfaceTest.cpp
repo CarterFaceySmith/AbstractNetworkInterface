@@ -145,46 +145,36 @@ TEST_F(NetworkImplementationTest, SendInvalidEmitter) {
     EXPECT_FALSE(client->sendEmitter(invalidEmitter));
 }
 
-// TEST_F(NetworkImplementationTest, ConcurrentSendReceive) {
-//     const int numMessages = 100;
-//     std::vector<std::future<void>> futures;
+TEST_F(NetworkImplementationTest, PerformanceTest) {
+    const int numMessages = 5;
+    auto start = std::chrono::high_resolution_clock::now();
 
-//     for (int i = 0; i < numMessages; ++i) {
-//         futures.push_back(std::async(std::launch::async, [this, i]() {
-//             PE pe(std::to_string(i).c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
-//             EXPECT_TRUE(client->sendPE(pe));
-//         }));
-//     }
+    for (int i = 0; i < numMessages; ++i) {
+        std::string id = "TestID" + std::to_string(i);
+        PE sentPE(id.c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
+        ASSERT_TRUE(client->sendPE(sentPE));
+        std::cout << "Sent PE " << i << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));  // Short delay between sends
+    }
 
-//     for (auto& f : futures) {
-//         f.wait();
-//     }
+    std::this_thread::sleep_for(std::chrono::milliseconds(2000));  // Allow time for all messages to be received
 
-//     std::this_thread::sleep_for(std::chrono::milliseconds(500));
+    std::cout << "Receiving PEs..." << std::endl;
+    auto receivedPEs = server->receivePEs();
+    std::cout << "Received PE list of size " << receivedPEs.size() << std::endl;
 
-//     auto receivedPEs = server->receivePEs();
-//     EXPECT_EQ(receivedPEs.size(), numMessages);
-// }
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-// TEST_F(NetworkImplementationTest, PerformanceTest) {
-//     const int numMessages = 1000;
-//     auto start = std::chrono::high_resolution_clock::now();
+    EXPECT_EQ(receivedPEs.size(), numMessages);
+    std::cout << "Time taken to send and receive " << numMessages << " PEs: " << duration.count() << "ms" << std::endl;
 
-//     for (int i = 0; i < numMessages; ++i) {
-//         PE pe(std::to_string(i).c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
-//         ASSERT_TRUE(client->sendPE(pe));
-//     }
-
-//     std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
-//     auto receivedPEs = server->receivePEs();
-//     auto end = std::chrono::high_resolution_clock::now();
-//     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-//     EXPECT_EQ(receivedPEs.size(), numMessages);
-//     std::cout << "Time taken to send and receive " << numMessages << " PEs: " << duration.count() << "ms" << std::endl;
-// }
-
+    // Verify the received PEs
+    for (int i = 0; i < numMessages; ++i) {
+        std::string idToCheck = "TestID" + std::to_string(i);
+        EXPECT_EQ(receivedPEs[i].id, idToCheck.c_str());
+    }
+}
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
     return RUN_ALL_TESTS();

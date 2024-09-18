@@ -58,6 +58,7 @@ private:
     std::string serializeEmitter(const Emitter& emitter);
     std::string serializeComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap);
     std::vector<PE> deserializePEs(const std::string& data);
+    PE deserializePE(const std::string& data);
     std::vector<Emitter> deserializeEmitters(const std::string& data);
     std::tuple<PE, Emitter, std::map<std::string, double>> deserializeComplexBlob(const std::string& data);
     boost::asio::io_context io_context;
