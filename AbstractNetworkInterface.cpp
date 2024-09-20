@@ -23,9 +23,19 @@ boost::asio::ip::tcp::socket* NetworkImplementation::getSocket() {
 void NetworkImplementation::validateAndPrintDataBufferSize(std::string dataBuff, std::string funcName) {
     dataBuff.data() ? std::cout << funcName << " - Received intact data buffer of length: "
                                 << dataBuff.length() << std::endl
-                    : std::cout << "Received invalid data buffer of length: "
+                    : std::cerr << "Received invalid data buffer of length: "
                                 << dataBuff.length() << std::endl;
 }
+
+// bool validateDataFields(QStringList requiredFields, QJsonObject json) {
+//     for (const auto& field : requiredFields) {
+//         if (!json.contains(field)) {
+//             throw std::runtime_error("Missing required field: " + field.toStdString());
+//             return false;
+//         }
+//     }
+//     return true;
+// }
 
 bool NetworkImplementation::sendBlob(const std::string& blobString) {
     boost::asio::write(*socket, boost::asio::buffer(blobString + "\n"));
@@ -185,13 +195,8 @@ PE NetworkImplementation::deserializePE(const std::string& data) {
     }
     QJsonObject json = doc.object();
 
-    // Check if all required fields are present
     QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
-    for (const auto& field : requiredFields) {
-        if (!json.contains(field)) {
-            throw std::runtime_error("Missing required field: " + field.toStdString());
-        }
-    }
+    // validateDataFields(requiredFields, json);
 
     PE pe(
         json["id"].toString(),
@@ -211,6 +216,7 @@ PE NetworkImplementation::deserializePE(const std::string& data) {
     return pe;
 }
 
+// FIXME: Multi-PE deserialize not working, need way of determining number of PEs in sent blob so can loop over to vector.
 std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
     std::vector<PE> pes;
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
@@ -219,13 +225,8 @@ std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
     }
     QJsonObject json = doc.object();
 
-    // Check if all required fields are present
     QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
-    for (const auto& field : requiredFields) {
-        if (!json.contains(field)) {
-            throw std::runtime_error("Missing required field: " + field.toStdString());
-        }
-    }
+    // validateDataFields(requiredFields, json);
 
     PE pe(
         json["id"].toString(),
