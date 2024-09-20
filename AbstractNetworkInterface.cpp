@@ -35,17 +35,19 @@ bool NetworkImplementation::sendBlob(const std::string& blobString) {
 bool NetworkImplementation::sendPE(const PE& pe) {
     // Basic data validation
     if (pe.id.length() < 3 || pe.altitude < 0) {
-        std::cout << "Invalid data field in pe object, aborting..." << std::endl;
+        std::cout << "Invalid data field in pe object..." << std::endl;
         return false;
     }
     std::string data = serializePE(pe) + "\n";  // Add newline to separate messages
+    std::cout << "SENDING PE DATA: " << data;
     boost::asio::write(*socket, boost::asio::buffer(data));
     return true;
 }
 
 bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
+    // Basic data validation
     if (emitter.id.length() < 3 || emitter.altitude < 0) {
-        std::cout << "Invalid data field in emitter object, aborting..." << std::endl;
+        std::cout << "Invalid data field in emitter object..." << std::endl;
         return false;
     }
     std::string data = serializeEmitter(emitter);
@@ -67,6 +69,7 @@ std::vector<PE> NetworkImplementation::receivePEs() {
                      boost::asio::buffers_end(buf.data())};
     buf.consume(buf.size());
 
+    std::cout << "RECEIVED PES: " << data;
     std::vector<PE> pes;
     std::istringstream iss(data);
     std::string line;
@@ -106,6 +109,7 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
     std::string data{boost::asio::buffers_begin(buf.data()),
                      boost::asio::buffers_begin(buf.data()) + buf.size() - 1}; // Remove the trailing newline
     buf.consume(buf.size()); // Consume the read data
+    std::cout << "RECEIVED COMPLEX BLOB:\n" << data << std::endl;
     validateAndPrintDataBufferSize(data, "receiveComplexBlob");
     return deserializeComplexBlob(data);
 }

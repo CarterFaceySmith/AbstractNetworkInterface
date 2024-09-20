@@ -7,6 +7,7 @@
 #include <tuple>
 #include "pe.h"
 #include "emitter.h"
+#include <QJsonObject>
 
 #ifndef ABSTRACTNETWORKINTERFACE_H
 #define ABSTRACTNETWORKINTERFACE_H
@@ -34,6 +35,8 @@ public:
     virtual std::tuple<PE, Emitter, std::map<std::string, double>> receiveComplexBlob() = 0;
     // Close the connection
     virtual void close() = 0;
+    // Validate required entity data fields from JSON
+    virtual bool validateDataFields(QStringList requiredFields, QJsonObject json);
 };
 
 class NetworkImplementation : public AbstractNetworkInterface {

@@ -146,7 +146,7 @@ TEST_F(NetworkImplementationTest, SendInvalidEmitter) {
 }
 
 TEST_F(NetworkImplementationTest, PerformanceTest) {
-    const int numMessages = 5;
+    const int numMessages = 20;
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < numMessages; ++i) {
@@ -154,10 +154,10 @@ TEST_F(NetworkImplementationTest, PerformanceTest) {
         PE sentPE(id.c_str(), "F18", 10.0, 20.0, 30000.0, 500.0, "MED", "HIGH", false, false);
         ASSERT_TRUE(client->sendPE(sentPE));
         std::cout << "Sent PE " << i << std::endl;
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));  // Short delay between sends
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Short delay between sends
     }
 
-    std::this_thread::sleep_for(std::chrono::milliseconds(2000));  // Allow time for all messages to be received
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Allow time for all messages to be received
 
     std::cout << "Receiving PEs..." << std::endl;
     auto receivedPEs = server->receivePEs();
