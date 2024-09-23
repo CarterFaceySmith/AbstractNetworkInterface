@@ -366,7 +366,11 @@ PE NetworkImplementation::deserializePE(const std::string& data) {
     QJsonObject json = doc.object();
 
     QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
-    // FIXME: Add data field validation
+    for(auto& field : requiredFields) {
+        if(!json.contains(field)){
+            throw std::runtime_error("JSON does not contain required field " + field.toStdString());
+        }
+    }
 
     PE pe(
         json["id"].toString(),
@@ -401,7 +405,11 @@ std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
     QJsonObject json = doc.object();
 
     QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
-    // FIXME: Add data field validation
+    for(auto& field : requiredFields) {
+        if(!json.contains(field)){
+            throw std::runtime_error("JSON does not contain required field " + field.toStdString());
+        }
+    }
 
     PE pe(
         json["id"].toString(),
