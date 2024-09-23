@@ -1,10 +1,10 @@
-<h3 align="center">Carter's Abstract Network Interface</h3>
+<h3 align="center">C++ QML-Compatible Abstract Network Interface</h3>
 <br>
 <p align="center"><i>An abstract networking interface class for use in QML applications, implementing aerospace entities</i></p>
 
 ## About The Project
 
-This project provides an abstract networking interface class written in C++ designed for integration with QML applications. It aims to facilitate the development of networking components that model aerospace entities.
+This project provides an abstract networking interface class over TCP written in C++ designed for integration with QML applications. It aims to facilitate the development of networking components that model aerospace entities.
 
 ## Pre-requisites
 
