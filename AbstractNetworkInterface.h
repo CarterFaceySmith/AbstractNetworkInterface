@@ -24,6 +24,12 @@ public:
     virtual bool sendBlob(const std::string& blobString) = 0;
     // Send complex blob (PE, Emitter, and map of doubles)
     virtual bool sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) = 0;
+    // Send single update setting for a PE
+    virtual bool sendPESetting(const std::string& setting, const std::string& id, int updateVal) = 0;
+    // Send single update setting for an Emitter
+    virtual bool sendEmitterSetting(const std::string& setting, const std::string& id, int updateVal) = 0;
+    // Receives and constructs a tuple of a given emitter or pe setting
+    virtual std::tuple<std::string, std::string, std::string, int> receiveSetting() = 0;
     // Receive air entity data
     virtual std::vector<PE> receivePEs() = 0;
     // Receive emitter data
@@ -46,6 +52,9 @@ public:
     bool sendEmitter(const Emitter& emitter) override;
     bool sendBlob(const std::string& blobString) override;
     bool sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) override;
+    bool sendPESetting(const std::string& setting, const std::string& id, int updateVal) override;
+    std::tuple<std::string, std::string, std::string, int> receiveSetting() override;
+    bool sendEmitterSetting(const std::string& setting, const std::string& id, int updateVal) override;
     std::vector<PE> receivePEs() override;
     std::vector<Emitter> receiveEmitters() override;
     std::vector<std::string> receiveBlob() override;
