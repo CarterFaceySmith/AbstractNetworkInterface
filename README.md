@@ -1,15 +1,63 @@
-# Carter's Abstract Network Interface
+<h3 align="center">C++ QML-Compatible Abstract Network Interface</h3>
+<br>
+<p align="center"><i>An abstract networking interface class for use in QML applications, implementing aerospace entities</i></p>
+
+## About The Project
+
+This project provides an abstract networking interface class over TCP written in C++ designed for integration with QML applications. It aims to facilitate the development of networking components that model aerospace entities.
 
 ## Pre-requisites
+
+Before you can build and test the project, ensure that you have the following dependencies installed:
+
 - `boost`
-- `gtest`
+- `gtest` (Google Test)
 
 ## Compiling and Running Tests
 
-1. `rm -rf build`
-2. `mkdir build`
-3. `cd build`
-4. `cmake ..`
-5. `make`
-6. `ctest`
-7. Alternatively run the test exec directly with `./AbstractNetworkInterfaceTest`
+Follow these steps to compile the project and run tests:
+
+1. **Optional: Clean Previous Builds**: 
+    ```bash
+    rm -rf build
+    ```
+
+2. **Optional: Create Build Directory**: 
+    ```bash
+    mkdir build
+    ```
+
+3. **Navigate to Build Directory**: 
+    ```bash
+    cd build
+    ```
+
+4. **Generate Build Files**: 
+    ```bash
+    cmake ..
+    ```
+
+    You can also set an environment variable to compile and link against the testing library or not using CMake.
+
+    ```bash
+    cmake .. -DENABLE_GTEST=OFF
+    ```
+
+5. **Compile the Project**: 
+    ```bash
+    make
+    ```
+
+6. **Run Tests**: 
+    ```bash
+    ctest
+    ```
+
+7. **Alternatively, Run the Test Executable Directly**: 
+    ```bash
+    ./AbstractNetworkInterfaceTest
+    ```
+
+### Notes
+
+If you encounter any issues or have questions about the project, please feel free to [contact me](mailto:carterfs@proton.me).
