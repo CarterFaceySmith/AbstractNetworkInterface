@@ -37,6 +37,12 @@ Follow these steps to compile the project and run tests:
     cmake ..
     ```
 
+    You can also set an environment variable to compile and link against the testing library or not using CMake.
+
+    ```bash
+    cmake .. -DENABLE_GTEST=OFF
+    ```
+
 5. **Compile the Project**: 
     ```bash
     make
