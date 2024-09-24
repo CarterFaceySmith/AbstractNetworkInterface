@@ -20,7 +20,7 @@ public:
     virtual bool sendPE(const PE& pe) = 0;
     // Send emitter data
     virtual bool sendEmitter(const Emitter& emitter) = 0;
-    // Send entire data blob
+    // Send entire generic data blob
     virtual bool sendBlob(const std::string& blobString) = 0;
     // Send complex blob (PE, Emitter, and map of doubles)
     virtual bool sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) = 0;
@@ -31,9 +31,9 @@ public:
     // Receives and constructs a tuple of a given emitter or pe setting
     virtual std::tuple<std::string, std::string, std::string, int> receiveSetting() = 0;
     // Receive air entity data
-    virtual std::vector<PE> receivePEs() = 0;
+    virtual PE receivePE() = 0;
     // Receive emitter data
-    virtual std::vector<Emitter> receiveEmitters() = 0;
+    virtual Emitter receiveEmitter() = 0;
     // Receive entire data blob
     virtual std::vector<std::string> receiveBlob() = 0;
     // Receive complex blob (PE, Emitter, and map of doubles)
@@ -55,8 +55,8 @@ public:
     bool sendPESetting(const std::string& setting, const std::string& id, int updateVal) override;
     std::tuple<std::string, std::string, std::string, int> receiveSetting() override;
     bool sendEmitterSetting(const std::string& setting, const std::string& id, int updateVal) override;
-    std::vector<PE> receivePEs() override;
-    std::vector<Emitter> receiveEmitters() override;
+    PE receivePE() override;
+    Emitter receiveEmitter() override;
     std::vector<std::string> receiveBlob() override;
     std::tuple<PE, Emitter, std::map<std::string, double>> receiveComplexBlob() override;
     void validateAndPrintDataBufferSize(std::string dataBuff, std::string funcName);
@@ -66,12 +66,14 @@ private:
     std::string serializePE(const PE& pe);
     std::string serializeEmitter(const Emitter& emitter);
     std::string serializeComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap);
-    std::vector<PE> deserializePEs(const std::string& data);
     PE deserializePE(const std::string& data);
-    std::vector<Emitter> deserializeEmitters(const std::string& data);
+    Emitter deserializeEmitter(const std::string& data);
     std::tuple<PE, Emitter, std::map<std::string, double>> deserializeComplexBlob(const std::string& data);
     boost::asio::io_context io_context;
     std::unique_ptr<boost::asio::ip::tcp::socket> socket;
+    bool validatePE(const PE& pe);
+    bool validateEmitter(const Emitter& emitter);
+    void logError(const std::string& message);
 };
 
 #endif // ABSTRACTNETWORKINTERFACE_H

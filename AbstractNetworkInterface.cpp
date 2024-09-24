@@ -5,7 +5,6 @@
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <iostream>
-#include <sstream>
 #include <stdexcept>
 
 /*!
@@ -32,8 +31,29 @@ NetworkImplementation::NetworkImplementation()
     \param port The port number to connect to.
 */
 void NetworkImplementation::initialise(const std::string& address, unsigned short port) {
-    boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address::from_string(address), port);
-    socket->connect(endpoint);
+    std::lock_guard<std::mutex> lock(std::mutex);
+    try {
+        boost::asio::ip::tcp::endpoint endpoint(boost::asio::ip::address::from_string(address), port);
+        socket->connect(endpoint);
+    } catch (const std::exception& e) {
+        logError("Failed to initialize connection: " + std::string(e.what()));
+        throw;
+    }
+}
+
+/*!
+    \fn void NetworkImplementation::close()
+    \brief Closes the network connection.
+*/
+void NetworkImplementation::close() {
+    std::lock_guard<std::mutex> lock(std::mutex);
+    if (socket->is_open()) {
+        boost::system::error_code ec;
+        socket->close(ec);
+        if (ec) {
+            logError("Failed to close socket: " + ec.message());
+        }
+    }
 }
 
 /*!
@@ -59,6 +79,35 @@ void NetworkImplementation::validateAndPrintDataBufferSize(std::string dataBuff,
 }
 
 /*!
+ * \fn bool NetworkImplementation::validatePE(const PE& pe)
+ * \brief Checks the latitude, longitude and altitude values for a given PE object are within valid ranges.
+ * \param pe The PE object to check.
+ * \return True if the fields are valid, false otherwise.
+ */
+bool NetworkImplementation::validatePE(const PE& pe) {
+    return !pe.id.isEmpty() && pe.lat >= -90 && pe.lat <= 90 && pe.lon >= -180 && pe.lon <= 180 && pe.altitude >= 0;
+}
+
+/*!
+ * \fn bool NetworkImplementation::validateEmitter(const Emitter& emitter)
+ * \brief Checks the latitude, longitude and altitude values for a given Emitter object are within valid ranges.
+ * \param emitter The Emitter object to check.
+ * \return True if the fields are valid, false otherwise.
+ */
+bool NetworkImplementation::validateEmitter(const Emitter& emitter) {
+    return !emitter.id.isEmpty() && emitter.lat >= -90 && emitter.lat <= 90 && emitter.lon >= -180 && emitter.lon <= 180 && emitter.freqMin < emitter.freqMax;
+}
+
+/*!
+ * \fn void NetworkImplementation::logError(const std::string& message)
+ * \brief Logs a given string to std::cerr in a standardised format.
+ * \param message The string to log.
+ */
+void NetworkImplementation::logError(const std::string& message) {
+    std::cerr << "NetworkImplementation Error: " << message << std::endl;
+}
+
+/*!
     \fn bool NetworkImplementation::sendPESetting(const std::string& setting, const std::string& id, int updateVal)
     \brief Sends a PE setting update.
     \param setting The name of the setting to update.
@@ -67,6 +116,7 @@ void NetworkImplementation::validateAndPrintDataBufferSize(std::string dataBuff,
     \return True if the setting was sent successfully, false otherwise.
 */
 bool NetworkImplementation::sendPESetting(const std::string& setting, const std::string& id, int updateVal) {
+    std::lock_guard<std::mutex> lock(std::mutex);
     QJsonObject json;
     json["type"] = "PE_SETTING";
     json["id"] = QString::fromStdString(id);
@@ -76,9 +126,13 @@ bool NetworkImplementation::sendPESetting(const std::string& setting, const std:
     QJsonDocument doc(json);
     std::string data = doc.toJson(QJsonDocument::Compact).toStdString() + "\n";
 
-    std::cout << "SENDING PE SETTING: " << data;
-    boost::asio::write(*socket, boost::asio::buffer(data));
-    return true;
+    try {
+        boost::asio::write(*socket, boost::asio::buffer(data));
+        return true;
+    } catch (const std::exception& e) {
+        logError("Failed to send PE setting: " + std::string(e.what()));
+        return false;
+    }
 }
 
 /*!
@@ -90,6 +144,7 @@ bool NetworkImplementation::sendPESetting(const std::string& setting, const std:
     \return True if the setting was sent successfully, false otherwise.
 */
 bool NetworkImplementation::sendEmitterSetting(const std::string& setting, const std::string& id, int updateVal) {
+    std::lock_guard<std::mutex> lock(std::mutex);
     QJsonObject json;
     json["type"] = "EMITTER_SETTING";
     json["id"] = QString::fromStdString(id);
@@ -99,42 +154,18 @@ bool NetworkImplementation::sendEmitterSetting(const std::string& setting, const
     QJsonDocument doc(json);
     std::string data = doc.toJson(QJsonDocument::Compact).toStdString() + "\n";
 
-    std::cout << "SENDING EMITTER SETTING: " << data;
-    boost::asio::write(*socket, boost::asio::buffer(data));
-    return true;
-}
-
-/*!
-    \fn std::tuple<std::string, std::string, std::string, int> NetworkImplementation::receiveSetting()
-    \brief Receives a setting update.
-    \return A tuple containing the type of setting, ID, setting name, and new value.
-*/
-std::tuple<std::string, std::string, std::string, int> NetworkImplementation::receiveSetting() {
-    boost::asio::streambuf buf;
-    boost::asio::read_until(*socket, buf, '\n');
-    std::string data{boost::asio::buffers_begin(buf.data()),
-                     boost::asio::buffers_end(buf.data())};
-    buf.consume(buf.size());
-
-    std::cout << "RECEIVED SETTING: " << data;
-
-    QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
-    if (doc.isNull()) {
-        throw std::runtime_error("Invalid JSON data for setting deserialization");
+    try {
+        boost::asio::write(*socket, boost::asio::buffer(data));
+        return true;
+    } catch (const std::exception& e) {
+        logError("Failed to send Emitter setting: " + std::string(e.what()));
+        return false;
     }
-    QJsonObject json = doc.object();
-
-    std::string type = json["type"].toString().toStdString();
-    std::string id = json["id"].toString().toStdString();
-    std::string setting = json["setting"].toString().toStdString();
-    int value = json["value"].toInt();
-
-    return std::make_tuple(type, id, setting, value);
 }
 
 /*!
     \fn bool NetworkImplementation::sendBlob(const std::string& blobString)
-    \brief Sends a blob of data.
+    \brief Sends a generic blob of data.
     \param blobString The blob data to send.
     \return True if the blob was sent successfully, false otherwise.
 */
@@ -150,15 +181,19 @@ bool NetworkImplementation::sendBlob(const std::string& blobString) {
     \return True if the PE was sent successfully, false otherwise.
 */
 bool NetworkImplementation::sendPE(const PE& pe) {
-    // Basic data validation
-    if (pe.id.length() < 3 || pe.altitude < 0) {
-        std::cout << "Invalid data field in pe object..." << std::endl;
+    std::lock_guard<std::mutex> lock(std::mutex);
+    if (!validatePE(pe)) {
+        logError("Invalid PE data");
         return false;
     }
-    std::string data = serializePE(pe) + "\n";  // Add newline to separate messages
-    std::cout << "SENDING PE DATA: " << data;
-    boost::asio::write(*socket, boost::asio::buffer(data));
-    return true;
+    try {
+        std::string data = serializePE(pe);
+        boost::asio::write(*socket, boost::asio::buffer(data));
+        return true;
+    } catch (const std::exception& e) {
+        logError("Failed to send PE: " + std::string(e.what()));
+        return false;
+    }
 }
 
 /*!
@@ -168,14 +203,19 @@ bool NetworkImplementation::sendPE(const PE& pe) {
     \return True if the Emitter was sent successfully, false otherwise.
 */
 bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
-    // Basic data validation
-    if (emitter.id.length() < 3 || emitter.altitude < 0) {
-        std::cout << "Invalid data field in emitter object..." << std::endl;
+    std::lock_guard<std::mutex> lock(std::mutex);
+    if (!validateEmitter(emitter)) {
+        logError("Invalid Emitter data");
         return false;
     }
-    std::string data = serializeEmitter(emitter);
-    boost::asio::write(*socket, boost::asio::buffer(data));
-    return true;
+    try {
+        std::string data = serializeEmitter(emitter);
+        boost::asio::write(*socket, boost::asio::buffer(data));
+        return true;
+    } catch (const std::exception& e) {
+        logError("Failed to send Emitter: " + std::string(e.what()));
+        return false;
+    }
 }
 
 /*!
@@ -188,48 +228,88 @@ bool NetworkImplementation::sendEmitter(const Emitter& emitter) {
 */
 bool NetworkImplementation::sendComplexBlob(const PE& pe, const Emitter& emitter, const std::map<std::string, double>& doubleMap) {
     std::string data = serializeComplexBlob(pe, emitter, doubleMap);
-    std::cout << "SENDING COMPLEX BLOB:\n" << data << std::endl;
-    boost::asio::write(*socket, boost::asio::buffer(data));
-    return true;
-}
-
-/*!
-    \fn std::vector<PE> NetworkImplementation::receivePEs()
-    \brief Receives a vector of PE objects.
-    \return A vector of received PE objects.
-*/
-std::vector<PE> NetworkImplementation::receivePEs() {
-    boost::asio::streambuf buf;
-    boost::asio::read_until(*socket, buf, '\n');
-    std::string data{boost::asio::buffers_begin(buf.data()),
-                     boost::asio::buffers_end(buf.data())};
-    buf.consume(buf.size());
-
-    std::cout << "RECEIVED PES: " << data;
-    std::vector<PE> pes;
-    std::istringstream iss(data);
-    std::string line;
-    while (std::getline(iss, line)) {
-        if (!line.empty()) {
-            pes.push_back(deserializePE(line));
-        }
+    try {
+        boost::asio::write(*socket, boost::asio::buffer(data));
+        return true;
+    } catch (const std::exception& e){
+        std::cerr << "Write to socket except while sending complex blob: " << e.what() << std::endl;
+        return false;
     }
-    return pes;
 }
 
 /*!
-    \fn std::vector<Emitter> NetworkImplementation::receiveEmitters()
-    \brief Receives a vector of Emitter objects.
-    \return A vector of received Emitter objects.
+    \fn std::tuple<std::string, std::string, std::string, int> NetworkImplementation::receiveSetting()
+    \brief Receives a setting update.
+    \return A tuple containing the type of setting, ID, setting name, and new value.
 */
-std::vector<Emitter> NetworkImplementation::receiveEmitters() {
-    boost::asio::streambuf buf;
-    boost::asio::read_until(*socket, buf, '\n');
-    std::string data{boost::asio::buffers_begin(buf.data()),
-                     boost::asio::buffers_end(buf.data())};
-    validateAndPrintDataBufferSize(data, "receiveEmitters");
+std::tuple<std::string, std::string, std::string, int> NetworkImplementation::receiveSetting() {
+    std::lock_guard<std::mutex> lock(std::mutex);
+    try {
+        boost::asio::streambuf buf;
+        boost::asio::read_until(*socket, buf, '\n');
+        std::string data{boost::asio::buffers_begin(buf.data()),
+                         boost::asio::buffers_end(buf.data())};
+        buf.consume(buf.size());
+        validateAndPrintDataBufferSize(data, "receiveSetting");
 
-    return deserializeEmitters(data);
+        QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
+        if (doc.isNull()) {
+            throw std::runtime_error("Invalid JSON data for setting deserialization");
+        }
+        QJsonObject json = doc.object();
+
+        std::string type = json["type"].toString().toStdString();
+        std::string id = json["id"].toString().toStdString();
+        std::string setting = json["setting"].toString().toStdString();
+        int value = json["value"].toInt();
+
+        return std::make_tuple(type, id, setting, value);
+    } catch (const std::exception& e) {
+        logError("Failed to receive Setting: " + std::string(e.what()));
+        throw;
+    }
+}
+
+/*!
+    \fn PE NetworkImplementation::receivePE()
+    \brief Receives a serialized JSON PE object.
+    \return The deserialized PE object.
+*/
+PE NetworkImplementation::receivePE() {
+    std::lock_guard<std::mutex> lock(std::mutex);
+    try {
+        boost::asio::streambuf buf;
+        boost::asio::read_until(*socket, buf, '\n');
+        std::string data{boost::asio::buffers_begin(buf.data()),
+                         boost::asio::buffers_end(buf.data())};
+        buf.consume(buf.size());
+        validateAndPrintDataBufferSize(data, "receivePE");
+        return deserializePE(data);
+    } catch (const std::exception& e) {
+        logError("Failed to receive PE: " + std::string(e.what()));
+        throw;
+    }
+}
+
+/*!
+    \fn Emitter NetworkImplementation::receiveEmitters()
+    \brief Receives a serialized JSON Emitter object.
+    \return The deserialized Emitter object.
+*/
+Emitter NetworkImplementation::receiveEmitter() {
+    std::lock_guard<std::mutex> lock(std::mutex);
+    try {
+        boost::asio::streambuf buf;
+        boost::asio::read_until(*socket, buf, '\n');
+        std::string data{boost::asio::buffers_begin(buf.data()),
+                         boost::asio::buffers_end(buf.data())};
+        buf.consume(buf.size());
+        validateAndPrintDataBufferSize(data, "receiveEmitter");
+        return deserializeEmitter(data);
+    } catch (const std::exception& e) {
+        logError("Failed to receive Emitter: " + std::string(e.what()));
+        throw;
+    }
 }
 
 /*!
@@ -238,15 +318,21 @@ std::vector<Emitter> NetworkImplementation::receiveEmitters() {
     \return A vector of strings containing the received blob data.
 */
 std::vector<std::string> NetworkImplementation::receiveBlob() {
-    boost::asio::streambuf buf;
-    boost::asio::read_until(*socket, buf, '\n');
-    std::string data{boost::asio::buffers_begin(buf.data()),
-                     boost::asio::buffers_end(buf.data())};
-    validateAndPrintDataBufferSize(data, "receiveBlob");
-
-    std::vector<std::string> result;
-    result.push_back(data);
-    return result;
+    std::lock_guard<std::mutex> lock(std::mutex);
+    try {
+        boost::asio::streambuf buf;
+        boost::asio::read_until(*socket, buf, '\n');
+        std::string data{boost::asio::buffers_begin(buf.data()),
+                         boost::asio::buffers_end(buf.data())};
+        buf.consume(buf.size());
+        validateAndPrintDataBufferSize(data, "receiveEmitter");
+        std::vector<std::string> result;
+        result.push_back(data);
+        return result;
+    } catch (const std::exception& e) {
+        logError("Failed to receive Emitter: " + std::string(e.what()));
+        throw;
+    }
 }
 
 /*!
@@ -263,14 +349,6 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::re
     std::cout << "RECEIVED COMPLEX BLOB:\n" << data << std::endl;
     validateAndPrintDataBufferSize(data, "receiveComplexBlob");
     return deserializeComplexBlob(data);
-}
-
-/*!
-    \fn void NetworkImplementation::close()
-    \brief Closes the network connection.
-*/
-void NetworkImplementation::close() {
-    socket->close();
 }
 
 /*!
@@ -361,14 +439,17 @@ std::string NetworkImplementation::serializeComplexBlob(const PE& pe, const Emit
 PE NetworkImplementation::deserializePE(const std::string& data) {
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
     if (doc.isNull()) {
-        throw std::runtime_error("Invalid JSON data for PE deserialization");
+        logError("Invalid JSON data for PE deserialization");
+        throw;
     }
     QJsonObject json = doc.object();
 
+    // Data field validation
     QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
     for(auto& field : requiredFields) {
         if(!json.contains(field)){
-            throw std::runtime_error("JSON does not contain required field " + field.toStdString());
+            logError("JSON does not contain required field " + field.toStdString());
+            throw;
         }
     }
 
@@ -387,90 +468,66 @@ PE NetworkImplementation::deserializePE(const std::string& data) {
     pe.heading = json["heading"].toDouble();
     pe.category = static_cast<PE::PECategory>(json["category"].toInt());
     pe.state = json["state"].toString();
-    return pe;
+
+    if (validatePE(pe)) return pe;
+    else {
+        logError("Invalid PE object deserialized");
+        throw;
+    }
 }
 
 /*!
-    \fn std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data)
-    \brief Deserializes a JSON string to a vector of PE objects.
+    \fn Emitter NetworkImplementation::deserializeEmitter(const std::string& data)
+    \brief Deserializes a JSON string to an Emitter object.
     \param data The JSON string to deserialize.
-    \return A vector of PE objects created from the JSON data.
+    \return An Emitter object created from the JSON data.
 */
-std::vector<PE> NetworkImplementation::deserializePEs(const std::string& data) {
-    std::vector<PE> pes;
+Emitter NetworkImplementation::deserializeEmitter(const std::string& data) {
     QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(data).toUtf8());
     if (doc.isNull()) {
-        throw std::runtime_error("Invalid JSON data for PE deserialization");
+        logError("Invalid JSON data for PE deserialization");
+        throw;
     }
     QJsonObject json = doc.object();
 
-    QStringList requiredFields = {"id", "type", "lat", "lon", "altitude", "speed", "apd", "priority", "jam", "ghost"};
+    // Data field validation
+    QStringList requiredFields = {"id", "type", "category", "lat", "lon", "freqMin", "freqMax", "jam"};
     for(auto& field : requiredFields) {
         if(!json.contains(field)){
-            throw std::runtime_error("JSON does not contain required field " + field.toStdString());
+            logError("JSON does not contain required field " + field.toStdString());
+            throw;
         }
     }
 
-    PE pe(
+    Emitter emitter(
         json["id"].toString(),
         json["type"].toString(),
+        json["category"].toString(),
         json["lat"].toDouble(),
         json["lon"].toDouble(),
-        json["altitude"].toDouble(),
-        json["speed"].toDouble(),
-        json["apd"].toString(),
-        json["priority"].toString(),
-        json["jam"].toBool(),
-        json["ghost"].toBool()
+        json["freqMin"].toDouble(),
+        json["freqMax"].toDouble(),
+        json["active"].toBool(),
+        json["eaPriority"].toString(),
+        json["esPriority"].toString(),
+        json["jamResponsible"].toBool(),
+        json["reactiveEligible"].toBool(),
+        json["preemptiveEligible"].toBool(),
+        json["consentRequired"].toBool(),
+        json["jam"].toBool()
     );
-    pe.heading = json["heading"].toDouble();
-    pe.category = static_cast<PE::PECategory>(json["category"].toInt());
-    pe.state = json["state"].toString();
-    pes.push_back(pe);
+    emitter.altitude = json["altitude"].toDouble();
+    emitter.heading = json["heading"].toDouble();
+    emitter.speed = json["speed"].toDouble();
+    emitter.operatorManaged = json["operatorManaged"].toBool();
+    emitter.jamIneffective = json["jamIneffective"].toInt();
+    emitter.jamEffective = json["jamEffective"].toInt();
 
-    return pes;
-}
-
-/*!
-    \fn std::vector<Emitter> NetworkImplementation::deserializeEmitters(const std::string& data)
-    \brief Deserializes a JSON string to a vector of Emitter objects.
-    \param data The JSON string to deserialize.
-    \return A vector of Emitter objects created from the JSON data.
-*/
-std::vector<Emitter> NetworkImplementation::deserializeEmitters(const std::string& data) {
-    std::vector<Emitter> emitters;
-    std::istringstream iss(data);
-    std::string line;
-    while (std::getline(iss, line)) {
-        QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(line).toUtf8());
-        if (doc.isNull()) continue;
-        QJsonObject json = doc.object();
-        Emitter emitter(
-            json["id"].toString(),
-            json["type"].toString(),
-            json["category"].toString(),
-            json["lat"].toDouble(),
-            json["lon"].toDouble(),
-            json["freqMin"].toDouble(),
-            json["freqMax"].toDouble(),
-            json["active"].toBool(),
-            json["eaPriority"].toString(),
-            json["esPriority"].toString(),
-            json["jamResponsible"].toBool(),
-            json["reactiveEligible"].toBool(),
-            json["preemptiveEligible"].toBool(),
-            json["consentRequired"].toBool(),
-            json["jam"].toBool()
-        );
-        emitter.altitude = json["altitude"].toDouble();
-        emitter.heading = json["heading"].toDouble();
-        emitter.speed = json["speed"].toDouble();
-        emitter.operatorManaged = json["operatorManaged"].toBool();
-        emitter.jamIneffective = json["jamIneffective"].toInt();
-        emitter.jamEffective = json["jamEffective"].toInt();
-        emitters.push_back(emitter);
+    if (validateEmitter(emitter)) return emitter;
+    else {
+        logError("Invalid Emitter object deserialized");
+        throw;
     }
-    return emitters;
 }
 
 /*!
@@ -485,19 +542,11 @@ std::tuple<PE, Emitter, std::map<std::string, double>> NetworkImplementation::de
 
     // Deserialize PE
     std::string peData = json["pe"].toObject()["data"].toString().toStdString();
-    std::vector<PE> pes = deserializePEs(peData);
-    if (pes.empty()) {
-        throw std::runtime_error("Deserialization of 'pe' resulted in an empty object");
-    }
-    PE pe = pes[0];
+    PE pe = deserializePE(peData);
 
     // Deserialize Emitter
     std::string emitterData = json["emitter"].toObject()["data"].toString().toStdString();
-    std::vector<Emitter> emitters = deserializeEmitters(emitterData);
-    if (emitters.empty()) {
-        throw std::runtime_error("Deserialization of 'emitter' resulted in an empty object");
-    }
-    Emitter emitter = emitters[0];
+    Emitter emitter = deserializeEmitter(emitterData);
 
     // Deserialize doubleMap
     std::map<std::string, double> doubleMap;
