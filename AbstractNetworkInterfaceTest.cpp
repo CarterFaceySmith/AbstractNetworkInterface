@@ -56,10 +56,8 @@ TEST_F(NetworkImplementationTest, SendReceivePE) {
     ASSERT_TRUE(client->sendPE(sentPE));
     std::cout << "PE sent" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
-    auto receivedPEs = server->receivePEs();
+    PE receivedPE = server->receivePE();
     std::cout << "PE received" << std::endl;
-    ASSERT_EQ(receivedPEs.size(), 1);
-    PE receivedPE = receivedPEs[0];
     EXPECT_EQ(receivedPE.id, sentPE.id);
     EXPECT_EQ(receivedPE.type, sentPE.type);
     EXPECT_DOUBLE_EQ(receivedPE.lat, sentPE.lat);
@@ -75,14 +73,12 @@ TEST_F(NetworkImplementationTest, SendReceivePE) {
 
 TEST_F(NetworkImplementationTest, SendReceiveEmitter) {
     std::cout << "Starting SendReceiveEmitter test" << std::endl;
-    Emitter sentEmitter("EmitterID", "RadarType", "Category", 15.0, 25.0, 8.0, 12.0);
+    Emitter sentEmitter("EmitterID", "RadarType", "Category", 15.0, 25.0, 8000.0, 12000.0, false);
     ASSERT_TRUE(client->sendEmitter(sentEmitter));
     std::cout << "Emitter sent" << std::endl;
     std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Allow time for message to be sent
-    auto receivedEmitters = server->receiveEmitters();
+    Emitter receivedEmitter = server->receiveEmitter();
     std::cout << "Emitter received" << std::endl;
-    ASSERT_EQ(receivedEmitters.size(), 1);
-    Emitter receivedEmitter = receivedEmitters[0];
     EXPECT_EQ(receivedEmitter.id, sentEmitter.id);
     EXPECT_EQ(receivedEmitter.type, sentEmitter.type);
     EXPECT_EQ(receivedEmitter.category, sentEmitter.category);
@@ -145,9 +141,9 @@ TEST_F(NetworkImplementationTest, SendInvalidEmitter) {
     EXPECT_FALSE(client->sendEmitter(invalidEmitter));
 }
 
-// FIXME: Fails over 2 numMessages, unknpwn JSON error in parsing.
-TEST_F(NetworkImplementationTest, PerformanceTest) {
-    const int numMessages = 2;
+TEST_F(NetworkImplementationTest, PerformanceTestPEs) {
+    std::cout << "Starting PerformanceTestPEs test" << std::endl;
+    const int numMessages = 20;
     auto start = std::chrono::high_resolution_clock::now();
 
     for (int i = 0; i < numMessages; ++i) {
@@ -156,25 +152,47 @@ TEST_F(NetworkImplementationTest, PerformanceTest) {
         ASSERT_TRUE(client->sendPE(sentPE));
         std::cout << "Sent PE " << i << std::endl;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Short delay between sends
+        PE receivedPE = server->receivePE();
+        std::cout << "Received PE " << receivedPE.id.toStdString() << std::endl;
+        std::string idToCheck = "TestID" + std::to_string(i);
+        EXPECT_EQ(receivedPE.id, idToCheck.c_str());
+        }
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Allow time for all messages to be received
+
+        auto end = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+        std::cout << "Time taken to send and receive " << numMessages << " PEs: " << duration.count() << "ms" << std::endl;
+
+        std::cout << "PerformanceTestPEs test completed" << std::endl;
+
+}
+
+TEST_F(NetworkImplementationTest, PerformanceTestEmitters) {
+    std::cout << "Starting PerformanceTestEmitters test" << std::endl;
+    const int numMessages = 20;
+    auto start = std::chrono::high_resolution_clock::now();
+
+    for (int i = 0; i < numMessages; ++i) {
+        std::string id = "TestID" + std::to_string(i);
+        Emitter sentEmitter(id.c_str(), "RadarType", "Category", 15.0, 25.0, 8.0, 12.0);
+        ASSERT_TRUE(client->sendEmitter(sentEmitter));
+        std::cout << "Sent Emitter " << i << std::endl;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));  // Short delay between sends
+        Emitter receivedEmitter = server->receiveEmitter();
+        std::cout << "Received Emitter " << receivedEmitter.id.toStdString() << std::endl;
+        std::string idToCheck = "TestID" + std::to_string(i);
+        EXPECT_EQ(receivedEmitter.id, idToCheck.c_str());
     }
 
     std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Allow time for all messages to be received
 
-    std::cout << "Receiving PEs..." << std::endl;
-    auto receivedPEs = server->receivePEs();
-    std::cout << "Received PE list of size " << receivedPEs.size() << std::endl;
-
     auto end = std::chrono::high_resolution_clock::now();
     auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Time taken to send and receive " << numMessages << " Emitters: " << duration.count() << "ms" << std::endl;
 
-    EXPECT_EQ(receivedPEs.size(), numMessages);
-    std::cout << "Time taken to send and receive " << numMessages << " PEs: " << duration.count() << "ms" << std::endl;
+    std::cout << "PerformanceTestEmitters test completed" << std::endl;
 
-    // Verify the received PEs
-    for (int i = 0; i < numMessages; ++i) {
-        std::string idToCheck = "TestID" + std::to_string(i);
-        EXPECT_EQ(receivedPEs[i].id, idToCheck.c_str());
-    }
 }
 
 TEST_F(NetworkImplementationTest, SendReceivePESetting) {
@@ -219,36 +237,55 @@ TEST_F(NetworkImplementationTest, SendReceiveEmitterSetting) {
     std::cout << "SendReceiveEmitterSetting test completed" << std::endl;
 }
 
-// FIXME: Fails due to invalid JSON deserialization
-// TEST_F(NetworkImplementationTest, SendMultipleSettings) {
-//     std::cout << "Starting SendMultipleSettings test" << std::endl;
+TEST_F(NetworkImplementationTest, PerformanceTestSettings) {
+    std::cout << "Starting PerformanceTestSettings test" << std::endl;
+    const int numMessagesPerEntity = 20;
+    auto start = std::chrono::high_resolution_clock::now();
 
-//     // Send PE setting
-//     ASSERT_TRUE(client->sendPESetting("APD", "PE001", 5));
-//     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    for (int i = 0; i < numMessagesPerEntity; ++i) {
+        // Send PE setting
+        ASSERT_TRUE(client->sendPESetting("APD", "PE00" + std::to_string(i), 10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-//     // Send Emitter setting
-//     ASSERT_TRUE(client->sendEmitterSetting("PRIO", "EM001", 2));
-//     std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        auto [type, id, setting, value] = server->receiveSetting();
+        if (type == "PE_SETTING") {
+            EXPECT_EQ(id, "PE00" + std::to_string(i));
+            EXPECT_EQ(setting, "APD");
+            EXPECT_EQ(value, 10);
+        } else if (type == "EMITTER_SETTING") {
+            EXPECT_EQ(id, "EM00" + std::to_string(i));
+            EXPECT_EQ(setting, "PRIO");
+            EXPECT_EQ(value, 10);
+        } else {
+            FAIL() << "Unexpected setting type received";
+        }
 
-//     // Receive and verify both settings
-//     for (int i = 0; i < 2; ++i) {
-//         auto [type, id, setting, value] = server->receiveSetting();
-//         if (type == "PE_SETTING") {
-//             EXPECT_EQ(id, "PE001");
-//             EXPECT_EQ(setting, "APD");
-//             EXPECT_EQ(value, 5);
-//         } else if (type == "EMITTER_SETTING") {
-//             EXPECT_EQ(id, "EM001");
-//             EXPECT_EQ(setting, "PRIO");
-//             EXPECT_EQ(value, 2);
-//         } else {
-//             FAIL() << "Unexpected setting type received";
-//         }
-//     }
+        // Send Emitter setting
+        ASSERT_TRUE(client->sendEmitterSetting("PRIO", "EM00" + std::to_string(i), 10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-//     std::cout << "SendMultipleSettings test completed" << std::endl;
-// }
+        auto [type2, id2, setting2, value2] = server->receiveSetting();
+        if (type2 == "PE_SETTING") {
+            EXPECT_EQ(id2, "PE00" + std::to_string(i));
+            EXPECT_EQ(setting2, "APD");
+            EXPECT_EQ(value2, 10);
+        } else if (type2 == "EMITTER_SETTING") {
+            EXPECT_EQ(id2, "EM00" + std::to_string(i));
+            EXPECT_EQ(setting2, "PRIO");
+            EXPECT_EQ(value2, 10);
+        } else {
+            FAIL() << "Unexpected setting type received";
+        }
+    }
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));  // Allow time for all messages to be received
+
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+    std::cout << "Time taken to send and receive " << numMessagesPerEntity << " settings per entity: " << duration.count() << "ms" << std::endl;
+
+    std::cout << "PerformanceTestSettings test completed" << std::endl;
+}
 
 int main(int argc, char **argv) {
     ::testing::InitGoogleTest(&argc, argv);
